@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flight Route Graph – Graf Berarah Berbobot</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  #network { background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 20px 20px; }
+  .modal-enter { animation: pop .18s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: scale(.95) translateY(8px);} to { opacity: 1; transform: none; } }
+  .route-card { transition: box-shadow .15s, border-color .15s; }
+  .route-card.active { border-color: #6366f1; box-shadow: 0 0 0 3px #e0e7ff; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+<!-- Header -->
+<header class="bg-white border-b border-slate-200">
+  <div class="max-w-6xl mx-auto px-4 py-5 flex items-center gap-3">
+    <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xl">✈</div>
+    <div>
+      <h1 class="text-xl font-bold leading-tight">Flight Route Graph</h1>
+      <p class="text-sm text-slate-500">Visualisasi graf berarah berbobot dari rute penerbangan &amp; biayanya</p>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+
+  <!-- Input -->
+  <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+    <div class="grid md:grid-cols-2 gap-5">
+      <div>
+        <label for="priceInput" class="block text-sm font-semibold mb-1">1. Daftar Harga Segmen Rute</label>
+        <p class="text-xs text-slate-500 mb-2">Format: <code class="bg-slate-100 px-1 rounded">asal-tujuan=harga</code> (satu per baris)</p>
+        <textarea id="priceInput" rows="9" spellcheck="false"
+          class="w-full rounded-xl border border-slate-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400"
+          placeholder="surabaya-kualalumpur=1500000&#10;kualalumpur-singapura=700000"></textarea>
+      </div>
+      <div>
+        <label for="routeInput" class="block text-sm font-semibold mb-1">2. Alur Rute Penerbangan</label>
+        <p class="text-xs text-slate-500 mb-2">Pisahkan kota dengan strip (-), satu rute per baris</p>
+        <textarea id="routeInput" rows="9" spellcheck="false"
+          class="w-full rounded-xl border border-slate-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400"
+          placeholder="surabaya-kualalumpur-singapura-hongkong&#10;surabaya-bali-thailand-hongkong"></textarea>
+        <div class="mt-2 flex items-start gap-2 text-xs bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-3 py-2">
+          <span>⚠️</span>
+          <span><b>Catatan:</b> Tulisan harus huruf kecil semua dan nama kota harus konsisten.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-5 flex flex-wrap items-center gap-3">
+      <button id="btnGenerate" class="bg-indigo-600 hover:bg-indigo-700 active:scale-95 transition text-white font-semibold px-6 py-2.5 rounded-xl shadow-sm">
+        Generate Graph
+      </button>
+      <button id="btnExample" class="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-sm font-medium">Muat Contoh</button>
+      <button id="btnExampleDup" class="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-sm font-medium">Contoh dengan Harga Ganda</button>
+      <button id="btnClear" class="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-rose-600">Kosongkan</button>
+    </div>
+
+    <div id="messages" class="mt-4 space-y-2"></div>
+  </section>
+
+  <!-- Graph -->
+  <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-slate-200">
+      <h2 class="font-semibold">Graf Rute Penerbangan</h2>
+      <div class="flex flex-wrap items-center gap-4 text-xs text-slate-600">
+        <span class="flex items-center gap-1.5"><i class="w-3 h-3 rounded bg-emerald-500 inline-block"></i>Asal</span>
+        <span class="flex items-center gap-1.5"><i class="w-3 h-3 rounded bg-indigo-500 inline-block"></i>Transit</span>
+        <span class="flex items-center gap-1.5"><i class="w-3 h-3 rounded bg-rose-500 inline-block"></i>Tujuan akhir</span>
+        <label class="flex items-center gap-1.5 cursor-pointer select-none"><input id="physicsToggle" type="checkbox" checked class="accent-indigo-600"> Fisika</label>
+        <button id="btnFit" class="px-2.5 py-1 rounded-lg border border-slate-300 hover:bg-slate-100">Pas ke layar</button>
+      </div>
+    </div>
+    <div class="relative">
+      <div id="network" class="w-full" style="height: 540px;"></div>
+      <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 pointer-events-none">
+        <div class="text-5xl mb-2">🗺️</div>
+        <p class="text-sm">Graf akan tampil di sini setelah Anda menekan “Generate Graph”.</p>
+      </div>
+    </div>
+    <p class="px-5 py-2 text-xs text-slate-500 border-t border-slate-200 bg-slate-50">Tips: seret node untuk memindahkan, seret garis kosong untuk menggeser kanvas, scroll untuk zoom. Klik kartu jalur di bawah untuk menyorot rutenya.</p>
+  </section>
+
+  <!-- Summary -->
+  <section id="summary" class="hidden space-y-6">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <h2 class="font-semibold text-lg">a. Rincian Jalur Rute &amp; Total Biaya</h2>
+        <span id="cheapestBadge" class="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full"></span>
+      </div>
+      <div id="routeCards" class="grid lg:grid-cols-2 gap-4"></div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+      <h2 class="font-semibold text-lg mb-4">b. Daftar Harga Unik Tiap Segmen</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-slate-500 border-b border-slate-200">
+              <th class="py-2 pr-4 font-medium">#</th>
+              <th class="py-2 pr-4 font-medium">Asal</th>
+              <th class="py-2 pr-4 font-medium">Tujuan</th>
+              <th class="py-2 pr-4 font-medium text-right">Harga</th>
+              <th class="py-2 font-medium text-right">Dipakai di</th>
+            </tr>
+          </thead>
+          <tbody id="segmentBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="text-center text-xs text-slate-400 py-8">Directed Weighted Graph • Vis.js Network</footer>
+
+<!-- Modal -->
+<div id="modal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+  <div class="modal-enter bg-white rounded-2xl shadow-xl max-w-md w-full p-6" role="dialog" aria-modal="true">
+    <div class="flex items-center gap-3 mb-3">
+      <div class="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-xl">⚠️</div>
+      <h3 class="font-bold text-lg">Harga Rute Ganda</h3>
+    </div>
+    <p id="modalText" class="text-sm text-slate-700 leading-relaxed"></p>
+    <p id="modalCounter" class="text-xs text-slate-400 mt-2"></p>
+    <div class="mt-5 flex justify-end gap-2">
+      <button id="modalNo" class="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-sm font-medium">Tidak (pakai harga pertama)</button>
+      <button id="modalYes" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold">Ya</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const rupiah = n => 'Rp ' + Number(n).toLocaleString('id-ID');
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const cap = s => s.replace(/\b\w/g, c => c.toUpperCase());
+
+  const EXAMPLE = {
+    prices:
+`surabaya-kualalumpur=1500000
+kualalumpur-singapura=700000
+singapura-hongkong=1200000
+surabaya-bali=500000
+bali-thailand=1800000
+thailand-hongkong=900000
+kualalumpur-hongkong=2000000
+singapura-tokyo=2500000
+hongkong-tokyo=1600000`,
+    routes:
+`surabaya-kualalumpur-singapura-hongkong
+surabaya-bali-thailand-hongkong
+surabaya-kualalumpur-hongkong
+surabaya-kualalumpur-singapura-tokyo`
+  };
+
+  let network = null, nodes = null, edges = null;
+  let currentRoutes = [];   // [{cities, edgeIds, total, missing}]
+  let activeRoute = -1;
+
+  /* ---------- Messages ---------- */
+  function showMessages(list) {
+    const colors = {
+      error: 'bg-rose-50 border-rose-200 text-rose-800',
+      warn: 'bg-amber-50 border-amber-200 text-amber-800',
+      info: 'bg-sky-50 border-sky-200 text-sky-800'
+    };
+    $('messages').innerHTML = list.map(m =>
+      `<div class="border rounded-lg px-3 py-2 text-sm ${colors[m.type]}">${m.html}</div>`).join('');
+  }
+
+  /* ---------- Modal (promise-based) ---------- */
+  function askLowest(key, prices, idx, total) {
+    return new Promise(resolve => {
+      $('modalText').innerHTML =
+        `Warning: Rute <b>[${esc(key)}]</b> memiliki lebih dari 1 harga (<b>${prices.map(rupiah).join(', ')}</b>). Apakah Anda ingin mengambil harga terendah?`;
+      $('modalCounter').textContent = `Konflik ${idx} dari ${total}`;
+      $('modal').classList.remove('hidden');
+      const done = v => {
+        $('modal').classList.add('hidden');
+        $('modalYes').onclick = $('modalNo').onclick = null;
+        resolve(v);
+      };
+      $('modalYes').onclick = () => done(true);
+      $('modalNo').onclick = () => done(false);
+      $('modalYes').focus();
+    });
+  }
+
+  /* ---------- Parsing ---------- */
+  function parsePrices(text, msgs) {
+    const map = new Map(); // key -> {from,to,prices:[]} (urutan input dipertahankan)
+    text.split('\n').forEach((raw, i) => {
+      const line = raw.trim();
+      if (!line) return;
+      const eq = line.split('=');
+      const left = (eq[0] || '').trim();
+      const parts = left.split('-').map(s => s.trim());
+      const price = parseInt((eq[1] || '').replace(/[^0-9]/g, ''), 10);
+      if (eq.length !== 2 || parts.length !== 2 || !parts[0] || !parts[1] || isNaN(price)) {
+        msgs.push({ type: 'warn', html: `Baris harga ${i + 1} diabaikan karena format tidak valid: <code>${esc(line)}</code>` });
+        return;
+      }
+      if (line !== line.toLowerCase())
+        msgs.push({ type: 'warn', html: `Baris harga ${i + 1} mengandung huruf kapital dan diubah ke huruf kecil: <code>${esc(line)}</code>` });
+      const from = parts[0].toLowerCase(), to = parts[1].toLowerCase();
+      const key = from + '-' + to;
+      if (!map.has(key)) map.set(key, { key, from, to, prices: [] });
+      map.get(key).prices.push(price);
+    });
+    return map;
+  }
+
+  function parseRoutes(text, msgs) {
+    const routes = [];
+    text.split('\n').forEach((raw, i) => {
+      const line = raw.trim();
+      if (!line) return;
+      if (line !== line.toLowerCase())
+        msgs.push({ type: 'warn', html: `Rute baris ${i + 1} mengandung huruf kapital dan diubah ke huruf kecil: <code>${esc(line)}</code>` });
+      const cities = line.toLowerCase().split('-').map(s => s.trim()).filter(Boolean);
+      if (cities.length < 2) {
+        msgs.push({ type: 'warn', html: `Rute baris ${i + 1} diabaikan (minimal 2 kota): <code>${esc(line)}</code>` });
+        return;
+      }
+      routes.push(cities);
+    });
+    return routes;
+  }
+
+  /* ---------- Generate ---------- */
+  async function generate() {
+    const msgs = [];
+    const priceMap = parsePrices($('priceInput').value, msgs);
+    const routeList = parseRoutes($('routeInput').value, msgs);
+
+    if (!routeList.length) {
+      msgs.push({ type: 'error', html: 'Tidak ada rute valid pada Area Input 2. Isi minimal satu rute, misal <code>surabaya-bali-thailand</code>.' });
+      showMessages(msgs); return;
+    }
+
+    // Validasi duplikasi harga
+    const conflicts = [...priceMap.values()]
+      .map(e => ({ ...e, distinct: [...new Set(e.prices)] }))
+      .filter(e => e.distinct.length > 1);
+
+    const finalPrice = new Map();
+    for (const e of priceMap.values()) finalPrice.set(e.key, e.prices[0]); // default: pertama diinput
+
+    let n = 0;
+    for (const c of conflicts) {
+      n++;
+      const useLowest = await askLowest(c.key, c.distinct, n, conflicts.length);
+      const chosen = useLowest ? Math.min(...c.distinct) : c.prices[0];
+      finalPrice.set(c.key, chosen);
+      msgs.push({ type: 'info', html: `Rute <b>${esc(c.key)}</b> memiliki harga ${c.distinct.map(rupiah).join(', ')} → memakai ${useLowest ? 'harga terendah' : 'harga pertama'}: <b>${rupiah(chosen)}</b>.` });
+    }
+
+    // Bangun data graf
+    const segUsage = new Map(); // key -> {from,to,price,routes:Set}
+    const missing = new Set();
+    currentRoutes = routeList.map((cities, ri) => {
+      const edgeIds = []; let total = 0; const miss = [];
+      const segs = [];
+      for (let i = 0; i < cities.length - 1; i++) {
+        const key = cities[i] + '-' + cities[i + 1];
+        const price = finalPrice.has(key) ? finalPrice.get(key) : null;
+        edgeIds.push(key);
+        segs.push({ from: cities[i], to: cities[i + 1], key, price });
+        if (price === null) { miss.push(key); missing.add(key); } else total += price;
+        if (!segUsage.has(key)) segUsage.set(key, { key, from: cities[i], to: cities[i + 1], price, routes: new Set() });
+        segUsage.get(key).routes.add(ri + 1);
+      }
+      return { cities, edgeIds, segs, total, missing: miss };
+    });
+
+    if (missing.size)
+      msgs.push({ type: 'warn', html: `Harga tidak ditemukan untuk segmen: ${[...missing].map(m => `<code>${esc(m)}</code>`).join(', ')}. Segmen digambar putus-putus merah dan tidak dihitung dalam total.` });
+
+    const unused = [...priceMap.keys()].filter(k => !segUsage.has(k));
+    if (unused.length)
+      msgs.push({ type: 'info', html: `${unused.length} segmen harga tidak dipakai di rute mana pun sehingga tidak digambar: ${unused.map(m => `<code>${esc(m)}</code>`).join(', ')}.` });
+
+    showMessages(msgs);
+    drawGraph(segUsage);
+    renderSummary(segUsage);
+  }
+
+  /* ---------- Graph ---------- */
+  function drawGraph(segUsage) {
+    const starts = new Set(currentRoutes.map(r => r.cities[0]));
+    const ends = new Set(currentRoutes.map(r => r.cities[r.cities.length - 1]));
+    const cityNames = new Set();
+    currentRoutes.forEach(r => r.cities.forEach(c => cityNames.add(c)));
+
+    const palette = {
+      start: { bg: '#10b981', border: '#047857' },
+      end: { bg: '#f43f5e', border: '#be123c' },
+      mid: { bg: '#6366f1', border: '#4338ca' }
+    };
+    const nodeData = [...cityNames].map(c => {
+      const p = starts.has(c) ? palette.start : ends.has(c) ? palette.end : palette.mid;
+      return {
+        id: c, label: cap(c), shape: 'box', margin: 10,
+        color: { background: p.bg, border: p.border, highlight: { background: p.bg, border: '#0f172a' }, hover: { background: p.bg, border: '#0f172a' } },
+        font: { color: '#ffffff', size: 15, face: 'system-ui', bold: true },
+        shapeProperties: { borderRadius: 10 }, borderWidth: 2
+      };
+    });
+
+    const keys = new Set(segUsage.keys());
+    const edgeData = [...segUsage.values()].map(s => {
+      const hasReverse = keys.has(s.to + '-' + s.from) && s.from !== s.to;
+      const missing = s.price === null;
+      return {
+        id: s.key, from: s.from, to: s.to,
+        label: missing ? 'harga ?' : rupiah(s.price),
+        arrows: { to: { enabled: true, scaleFactor: 0.9 } },
+        dashes: missing,
+        color: { color: missing ? '#f43f5e' : '#94a3b8', highlight: '#4f46e5', hover: '#6366f1' },
+        width: 2,
+        font: { size: 12, color: missing ? '#be123c' : '#334155', background: '#ffffff', strokeWidth: 0, align: 'middle', face: 'system-ui' },
+        smooth: hasReverse ? { enabled: true, type: 'curvedCW', roundness: 0.22 } : { enabled: true, type: 'dynamic' }
+      };
+    });
+
+    nodes = new vis.DataSet(nodeData);
+    edges = new vis.DataSet(edgeData);
+    $('emptyState').classList.add('hidden');
+    activeRoute = -1;
+
+    if (network) network.destroy();
+    network = new vis.Network($('network'), { nodes, edges }, {
+      physics: {
+        enabled: true,
+        solver: 'barnesHut',
+        barnesHut: { gravitationalConstant: -9000, springLength: 210, springConstant: 0.03, damping: 0.4, avoidOverlap: 0.6 },
+        stabilization: { iterations: 250 }
+      },
+      interaction: { dragNodes: true, dragView: true, zoomView: true, hover: true, multiselect: false, tooltipDelay: 150 },
+      edges: { selectionWidth: 2 }
+    });
+    $('physicsToggle').checked = true;
+    network.once('stabilizationIterationsDone', () => network.fit({ animation: { duration: 400 } }));
+  }
+
+  function highlightRoute(idx) {
+    if (!edges) return;
+    activeRoute = (activeRoute === idx) ? -1 : idx;
+    const set = activeRoute >= 0 ? new Set(currentRoutes[activeRoute].edgeIds) : null;
+    const nodeSet = activeRoute >= 0 ? new Set(currentRoutes[activeRoute].cities) : null;
+    edges.update(edges.getIds().map(id => {
+      const e = edges.get(id);
+      const miss = e.dashes;
+      const on = !set || set.has(id);
+      return {
+        id,
+        width: set && on ? 4 : 2,
+        color: { color: set ? (on ? '#4f46e5' : '#e2e8f0') : (miss ? '#f43f5e' : '#94a3b8'), highlight: '#4f46e5', hover: '#6366f1' },
+        font: { ...e.font, color: on ? (miss ? '#be123c' : '#334155') : '#cbd5e1' }
+      };
+    }));
+    nodes.update(nodes.getIds().map(id => ({ id, opacity: !nodeSet || nodeSet.has(id) ? 1 : 0.3 })));
+    document.querySelectorAll('.route-card').forEach((el, i) => el.classList.toggle('active', i === activeRoute));
+  }
+
+  /* ---------- Summary ---------- */
+  function renderSummary(segUsage) {
+    $('summary').classList.remove('hidden');
+
+    const valid = currentRoutes.map((r, i) => ({ r, i })).filter(x => !x.r.missing.length);
+    if (valid.length) {
+      const best = valid.reduce((a, b) => (b.r.total < a.r.total ? b : a));
+      $('cheapestBadge').textContent = `Termurah: Jalur ${best.i + 1} • ${rupiah(best.r.total)}`;
+      $('cheapestBadge').classList.remove('hidden');
+    } else $('cheapestBadge').classList.add('hidden');
+
+    $('routeCards').innerHTML = currentRoutes.map((r, i) => {
+      const chain = r.cities.map(c => `<span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">${esc(cap(c))}</span>`)
+        .join('<span class="text-slate-400 text-xs mx-0.5">→</span>');
+      const rows = r.segs.map(s => `
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">${esc(cap(s.from))} → ${esc(cap(s.to))}</span>
+          <span class="${s.price === null ? 'text-rose-600' : 'font-medium'}">${s.price === null ? 'harga tidak ada' : rupiah(s.price)}</span>
+        </li>`).join('');
+      return `
+      <div class="route-card border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-indigo-300" data-idx="${i}">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-semibold text-indigo-600">Jalur ${i + 1}</span>
+          <span class="text-xs text-slate-400">${r.segs.length} segmen</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-1 mb-3">${chain}</div>
+        <ul class="text-sm mb-3">${rows}</ul>
+        <div class="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2">
+          <span class="text-sm text-slate-600">Total biaya${r.missing.length ? ' <span class="text-rose-600">(tidak lengkap)</span>' : ''}</span>
+          <span class="font-bold text-slate-900">${rupiah(r.total)}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    document.querySelectorAll('.route-card').forEach(el =>
+      el.addEventListener('click', () => highlightRoute(+el.dataset.idx)));
+
+    $('segmentBody').innerHTML = [...segUsage.values()].map((s, i) => `
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">${i + 1}</td>
+        <td class="py-2 pr-4">${esc(cap(s.from))}</td>
+        <td class="py-2 pr-4">${esc(cap(s.to))}</td>
+        <td class="py-2 pr-4 text-right font-medium ${s.price === null ? 'text-rose-600' : ''}">${s.price === null ? 'tidak ada' : rupiah(s.price)}</td>
+        <td class="py-2 text-right text-slate-500">${[...s.routes].map(n => 'Jalur ' + n).join(', ')}</td>
+      </tr>`).join('');
+  }
+
+  /* ---------- Events ---------- */
+  $('btnGenerate').addEventListener('click', generate);
+  $('btnExample').addEventListener('click', () => {
+    $('priceInput').value = EXAMPLE.prices; $('routeInput').value = EXAMPLE.routes; generate();
+  });
+  $('btnExampleDup').addEventListener('click', () => {
+    $('priceInput').value = EXAMPLE.prices + '\nsurabaya-kualalumpur=1400000\nbali-thailand=1650000\nsurabaya-kualalumpur=1450000';
+    $('routeInput').value = EXAMPLE.routes; generate();
+  });
+  $('btnClear').addEventListener('click', () => {
+    $('priceInput').value = ''; $('routeInput').value = ''; showMessages([]);
+  });
+  $('btnFit').addEventListener('click', () => network && network.fit({ animation: { duration: 400 } }));
+  $('physicsToggle').addEventListener('change', e => network && network.setOptions({ physics: { enabled: e.target.checked } }));
+  window.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('modal').classList.contains('hidden')) $('modalNo').click(); });
+
+  // Isi awal & render otomatis
+  $('priceInput').value = EXAMPLE.prices;
+  $('routeInput').value = EXAMPLE.routes;
+  generate();
+})();
+</script>
+</body>
+</html>
