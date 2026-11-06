@@ -24,7 +24,7 @@
     <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xl">✈</div>
     <div>
       <h1 class="text-xl font-bold leading-tight">Flight Route Graph</h1>
-      <p class="text-sm text-slate-500">Kelompok 4 (Ainur, Bima, dan Livia)</p>
+      <p class="text-sm text-slate-500">Visualisasi graf berarah berbobot dari rute penerbangan &amp; biayanya</p>
     </div>
   </div>
 </header>
@@ -61,6 +61,17 @@
       <button id="btnExample" class="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-sm font-medium">Muat Contoh</button>
       <button id="btnExampleDup" class="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-sm font-medium">Contoh dengan Harga Ganda</button>
       <button id="btnClear" class="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:text-rose-600">Kosongkan</button>
+    </div>
+
+    <div class="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center gap-2">
+      <button id="btnSave" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold">💾 Simpan Lokal</button>
+      <button id="btnLoad" class="px-4 py-2 rounded-xl border border-slate-300 hover:bg-slate-100 text-sm font-medium">📂 Muat Simpanan</button>
+      <button id="btnDelete" class="px-4 py-2 rounded-xl border border-slate-300 hover:bg-rose-50 hover:text-rose-600 text-sm font-medium">🗑 Hapus Simpanan</button>
+      <button id="btnExport" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-sm font-semibold">⬇ Export HTML</button>
+      <label class="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer select-none ml-1">
+        <input id="autoSave" type="checkbox" checked class="accent-indigo-600"> Simpan otomatis
+      </label>
+      <span id="saveStatus" class="text-xs text-slate-400 ml-auto"></span>
     </div>
 
     <div id="messages" class="mt-4 space-y-2"></div>
@@ -119,6 +130,8 @@
 </main>
 
 <footer class="text-center text-xs text-slate-400 py-8">Directed Weighted Graph • Vis.js Network</footer>
+
+<div id="toast" class="fixed bottom-5 right-5 z-[60] bg-slate-900 text-white text-sm px-4 py-2.5 rounded-xl shadow-lg opacity-0 translate-y-2 pointer-events-none transition-all duration-200"></div>
 
 <!-- Modal -->
 <div id="modal" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -236,7 +249,8 @@ surabaya-kualalumpur-singapura-tokyo`
   }
 
   /* ---------- Generate ---------- */
-  async function generate() {
+  let lastChoices = {};
+  async function generate(opts = {}) {
     const msgs = [];
     const priceMap = parsePrices($('priceInput').value, msgs);
     const routeList = parseRoutes($('routeInput').value, msgs);
@@ -255,9 +269,13 @@ surabaya-kualalumpur-singapura-tokyo`
     for (const e of priceMap.values()) finalPrice.set(e.key, e.prices[0]); // default: pertama diinput
 
     let n = 0;
+    const choicesMade = {};
     for (const c of conflicts) {
       n++;
-      const useLowest = await askLowest(c.key, c.distinct, n, conflicts.length);
+      const preset = opts.choices && opts.choices[c.key];
+      const reuse = preset && preset.prices.join(',') === c.distinct.join(',');
+      const useLowest = reuse ? preset.lowest : await askLowest(c.key, c.distinct, n, conflicts.length);
+      choicesMade[c.key] = { prices: c.distinct, lowest: useLowest };
       const chosen = useLowest ? Math.min(...c.distinct) : c.prices[0];
       finalPrice.set(c.key, chosen);
       msgs.push({ type: 'info', html: `Rute <b>${esc(c.key)}</b> memiliki harga ${c.distinct.map(rupiah).join(', ')} → memakai ${useLowest ? 'harga terendah' : 'harga pertama'}: <b>${rupiah(chosen)}</b>.` });
@@ -288,13 +306,15 @@ surabaya-kualalumpur-singapura-tokyo`
     if (unused.length)
       msgs.push({ type: 'info', html: `${unused.length} segmen harga tidak dipakai di rute mana pun sehingga tidak digambar: ${unused.map(m => `<code>${esc(m)}</code>`).join(', ')}.` });
 
+    lastChoices = choicesMade;
     showMessages(msgs);
-    drawGraph(segUsage);
+    drawGraph(segUsage, opts.positions);
     renderSummary(segUsage);
+    autoSave();
   }
 
   /* ---------- Graph ---------- */
-  function drawGraph(segUsage) {
+  function drawGraph(segUsage, positions) {
     const starts = new Set(currentRoutes.map(r => r.cities[0]));
     const ends = new Set(currentRoutes.map(r => r.cities[r.cities.length - 1]));
     const cityNames = new Set();
@@ -305,10 +325,12 @@ surabaya-kualalumpur-singapura-tokyo`
       end: { bg: '#f43f5e', border: '#be123c' },
       mid: { bg: '#6366f1', border: '#4338ca' }
     };
+    const usePos = !!positions && [...cityNames].every(c => positions[c] && isFinite(positions[c].x) && isFinite(positions[c].y));
     const nodeData = [...cityNames].map(c => {
       const p = starts.has(c) ? palette.start : ends.has(c) ? palette.end : palette.mid;
       return {
         id: c, label: cap(c), shape: 'box', margin: 10,
+        ...(usePos ? { x: positions[c].x, y: positions[c].y } : {}),
         color: { background: p.bg, border: p.border, highlight: { background: p.bg, border: '#0f172a' }, hover: { background: p.bg, border: '#0f172a' } },
         font: { color: '#ffffff', size: 15, face: 'system-ui', bold: true },
         shapeProperties: { borderRadius: 10 }, borderWidth: 2
@@ -327,7 +349,7 @@ surabaya-kualalumpur-singapura-tokyo`
         color: { color: missing ? '#f43f5e' : '#94a3b8', highlight: '#4f46e5', hover: '#6366f1' },
         width: 2,
         font: { size: 12, color: missing ? '#be123c' : '#334155', background: '#ffffff', strokeWidth: 0, align: 'middle', face: 'system-ui' },
-        smooth: hasReverse ? { enabled: true, type: 'curvedCW', roundness: 0.22 } : { enabled: true, type: 'dynamic' }
+        smooth: hasReverse ? { enabled: true, type: 'curvedCW', roundness: 0.22 } : { enabled: true, type: usePos ? 'continuous' : 'dynamic' }
       };
     });
 
@@ -339,7 +361,7 @@ surabaya-kualalumpur-singapura-tokyo`
     if (network) network.destroy();
     network = new vis.Network($('network'), { nodes, edges }, {
       physics: {
-        enabled: true,
+        enabled: !usePos,
         solver: 'barnesHut',
         barnesHut: { gravitationalConstant: -9000, springLength: 210, springConstant: 0.03, damping: 0.4, avoidOverlap: 0.6 },
         stabilization: { iterations: 250 }
@@ -347,8 +369,10 @@ surabaya-kualalumpur-singapura-tokyo`
       interaction: { dragNodes: true, dragView: true, zoomView: true, hover: true, multiselect: false, tooltipDelay: 150 },
       edges: { selectionWidth: 2 }
     });
-    $('physicsToggle').checked = true;
-    network.once('stabilizationIterationsDone', () => network.fit({ animation: { duration: 400 } }));
+    $('physicsToggle').checked = !usePos;
+    if (usePos) network.fit();
+    else network.once('stabilizationIterationsDone', () => { network.fit({ animation: { duration: 400 } }); autoSave(); });
+    network.on('dragEnd', params => { if (params.nodes && params.nodes.length) autoSave(); });
   }
 
   function highlightRoute(idx) {
@@ -418,8 +442,191 @@ surabaya-kualalumpur-singapura-tokyo`
       </tr>`).join('');
   }
 
+  /* ---------- Toast ---------- */
+  let toastTimer;
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.remove('opacity-0', 'translate-y-2');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.add('opacity-0', 'translate-y-2'), 2500);
+  }
+
+  /* ---------- Simpan / Muat (localStorage) ---------- */
+  const STORE_KEY = 'flightgraph:v1';
+
+  function collectState() {
+    return {
+      prices: $('priceInput').value,
+      routes: $('routeInput').value,
+      choices: lastChoices,
+      positions: network ? network.getPositions() : null,
+      savedAt: Date.now()
+    };
+  }
+
+  function saveState(manual) {
+    try {
+      const s = collectState();
+      localStorage.setItem(STORE_KEY, JSON.stringify(s));
+      $('saveStatus').textContent = 'Tersimpan ' + new Date(s.savedAt).toLocaleTimeString('id-ID');
+      if (manual) toast('✅ Data & posisi graf tersimpan di browser');
+      return true;
+    } catch (e) {
+      if (manual) toast('❌ Gagal menyimpan: ' + e.message);
+      $('saveStatus').textContent = 'Penyimpanan lokal tidak tersedia';
+      return false;
+    }
+  }
+
+  let autoTimer;
+  function autoSave() {
+    if (!$('autoSave').checked) return;
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(() => saveState(false), 400);
+  }
+
+  async function loadState(manual) {
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(STORE_KEY)); } catch (e) { s = null; }
+    if (!s) { if (manual) toast('Belum ada data tersimpan'); return false; }
+    $('priceInput').value = s.prices || '';
+    $('routeInput').value = s.routes || '';
+    $('saveStatus').textContent = 'Dimuat dari simpanan ' + new Date(s.savedAt).toLocaleString('id-ID');
+    await generate({ choices: s.choices || {}, positions: s.positions || null });
+    if (manual) toast('📂 Simpanan berhasil dimuat');
+    return true;
+  }
+
+  function deleteState() {
+    try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+    $('saveStatus').textContent = 'Simpanan dihapus';
+    toast('🗑 Simpanan dihapus');
+  }
+
+  /* ---------- Export HTML ---------- */
+  // Fungsi ini di-serialize (toString) dan ditanam ke file HTML hasil export.
+  function exportRuntime(D) {
+    const el = id => document.getElementById(id);
+    const nodes = new vis.DataSet(D.nodes), edges = new vis.DataSet(D.edges);
+    const net = new vis.Network(el('network'), { nodes, edges }, {
+      physics: { enabled: false },
+      interaction: { dragNodes: true, dragView: true, zoomView: true, hover: true },
+      edges: { selectionWidth: 2 }
+    });
+    net.fit();
+    el('btnFit').addEventListener('click', () => net.fit({ animation: { duration: 400 } }));
+    let active = -1;
+    function highlight(idx) {
+      active = active === idx ? -1 : idx;
+      const set = active >= 0 ? new Set(D.routes[active].edgeIds) : null;
+      const nset = active >= 0 ? new Set(D.routes[active].cities) : null;
+      edges.update(edges.getIds().map(id => {
+        const e = edges.get(id), miss = e.dashes, on = !set || set.has(id);
+        return {
+          id, width: set && on ? 4 : 2,
+          color: { color: set ? (on ? '#4f46e5' : '#e2e8f0') : (miss ? '#f43f5e' : '#94a3b8'), highlight: '#4f46e5', hover: '#6366f1' },
+          font: Object.assign({}, e.font, { color: on ? (miss ? '#be123c' : '#334155') : '#cbd5e1' })
+        };
+      }));
+      nodes.update(nodes.getIds().map(id => ({ id, opacity: !nset || nset.has(id) ? 1 : 0.3 })));
+      document.querySelectorAll('.route-card').forEach((c, i) => c.classList.toggle('active', i === active));
+    }
+    document.querySelectorAll('.route-card').forEach(c =>
+      c.addEventListener('click', () => highlight(+c.dataset.idx)));
+  }
+
+  function exportHtml() {
+    if (!network || !nodes) { toast('Generate graph terlebih dahulu'); return; }
+    if (activeRoute >= 0) highlightRoute(activeRoute); // reset sorotan sebelum export
+
+    const pos = network.getPositions();
+    const nodeData = nodes.get().map(n => ({ ...n, x: pos[n.id].x, y: pos[n.id].y, opacity: 1 }));
+    const edgeData = edges.get().map(e => {
+      const sm = e.smooth && e.smooth.type === 'dynamic' ? { enabled: true, type: 'continuous' } : e.smooth;
+      return { ...e, smooth: sm };
+    });
+
+    const sum = $('summary').cloneNode(true);
+    sum.classList.remove('hidden');
+    sum.querySelectorAll('.route-card').forEach(c => c.classList.remove('active'));
+
+    const stamp = new Date();
+    const data = {
+      nodes: nodeData,
+      edges: edgeData,
+      routes: currentRoutes.map(r => ({ edgeIds: r.edgeIds, cities: r.cities }))
+    };
+    const json = JSON.stringify(data).replace(/</g, '\\u003c');
+
+    const html = `<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flight Route Graph – Export</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"><\/script>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"><\/script>
+<style>
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  textarea, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  #network { background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 20px 20px; }
+  .route-card { transition: box-shadow .15s, border-color .15s; }
+  .route-card.active { border-color: #6366f1; box-shadow: 0 0 0 3px #e0e7ff; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+<header class="bg-white border-b border-slate-200">
+  <div class="max-w-6xl mx-auto px-4 py-5 flex items-center gap-3">
+    <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xl">✈</div>
+    <div>
+      <h1 class="text-xl font-bold leading-tight">Flight Route Graph</h1>
+      <p class="text-sm text-slate-500">Diexport pada ${esc(stamp.toLocaleString('id-ID'))}</p>
+    </div>
+  </div>
+</header>
+<main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+  <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200">
+      <h2 class="font-semibold">Graf Rute Penerbangan</h2>
+      <div class="flex items-center gap-4 text-xs text-slate-600">
+        <span class="flex items-center gap-1.5"><i class="w-3 h-3 rounded bg-emerald-500 inline-block"></i>Asal</span>
+        <span class="flex items-center gap-1.5"><i class="w-3 h-3 rounded bg-indigo-500 inline-block"></i>Transit</span>
+        <span class="flex items-center gap-1.5"><i class="w-3 h-3 rounded bg-rose-500 inline-block"></i>Tujuan akhir</span>
+        <button id="btnFit" class="px-2.5 py-1 rounded-lg border border-slate-300 hover:bg-slate-100">Pas ke layar</button>
+      </div>
+    </div>
+    <div id="network" class="w-full" style="height: 540px;"></div>
+    <p class="px-5 py-2 text-xs text-slate-500 border-t border-slate-200 bg-slate-50">Seret node untuk memindahkan, scroll untuk zoom. Klik kartu jalur untuk menyorot rutenya.</p>
+  </section>
+  ${sum.outerHTML}
+  <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+    <h2 class="font-semibold text-lg mb-3">Data Input Asli</h2>
+    <div class="grid md:grid-cols-2 gap-4">
+      <div><p class="text-xs text-slate-500 mb-1">Daftar harga segmen</p><pre class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs overflow-auto">${esc($('priceInput').value)}</pre></div>
+      <div><p class="text-xs text-slate-500 mb-1">Alur rute</p><pre class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs overflow-auto">${esc($('routeInput').value)}</pre></div>
+    </div>
+  </section>
+</main>
+<footer class="text-center text-xs text-slate-400 py-8">Directed Weighted Graph • Vis.js Network</footer>
+<script>
+(${exportRuntime.toString()})(${json});
+<\/script>
+</body>
+</html>`;
+
+    const pad = n => String(n).padStart(2, '0');
+    const name = `flight-route-graph-${stamp.getFullYear()}${pad(stamp.getMonth() + 1)}${pad(stamp.getDate())}-${pad(stamp.getHours())}${pad(stamp.getMinutes())}.html`;
+    const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    toast('⬇ File ' + name + ' diunduh');
+  }
+
   /* ---------- Events ---------- */
-  $('btnGenerate').addEventListener('click', generate);
+  $('btnGenerate').addEventListener('click', () => generate());
   $('btnExample').addEventListener('click', () => {
     $('priceInput').value = EXAMPLE.prices; $('routeInput').value = EXAMPLE.routes; generate();
   });
@@ -427,6 +634,13 @@ surabaya-kualalumpur-singapura-tokyo`
     $('priceInput').value = EXAMPLE.prices + '\nsurabaya-kualalumpur=1400000\nbali-thailand=1650000\nsurabaya-kualalumpur=1450000';
     $('routeInput').value = EXAMPLE.routes; generate();
   });
+  $('btnSave').addEventListener('click', () => saveState(true));
+  $('btnLoad').addEventListener('click', () => loadState(true));
+  $('btnDelete').addEventListener('click', deleteState);
+  $('btnExport').addEventListener('click', exportHtml);
+  $('priceInput').addEventListener('input', autoSave);
+  $('routeInput').addEventListener('input', autoSave);
+  $('autoSave').addEventListener('change', e => { if (e.target.checked) saveState(false); });
   $('btnClear').addEventListener('click', () => {
     $('priceInput').value = ''; $('routeInput').value = ''; showMessages([]);
   });
@@ -434,10 +648,14 @@ surabaya-kualalumpur-singapura-tokyo`
   $('physicsToggle').addEventListener('change', e => network && network.setOptions({ physics: { enabled: e.target.checked } }));
   window.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('modal').classList.contains('hidden')) $('modalNo').click(); });
 
-  // Isi awal & render otomatis
-  $('priceInput').value = EXAMPLE.prices;
-  $('routeInput').value = EXAMPLE.routes;
-  generate();
+  // Muat simpanan jika ada; jika tidak, tampilkan contoh
+  loadState(false).then(ok => {
+    if (!ok) {
+      $('priceInput').value = EXAMPLE.prices;
+      $('routeInput').value = EXAMPLE.routes;
+      generate();
+    }
+  });
 })();
 </script>
 </body>
