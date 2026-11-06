@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flight Route Graph – Export</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  textarea, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  #network { background-image: radial-gradient(#e2e8f0 1px, transparent 1px); background-size: 20px 20px; }
+  .route-card { transition: box-shadow .15s, border-color .15s; }
+  .route-card.active { border-color: #6366f1; box-shadow: 0 0 0 3px #e0e7ff; }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+<header class="bg-white border-b border-slate-200">
+  <div class="max-w-6xl mx-auto px-4 py-5 flex items-center gap-3">
+    <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center text-xl">✈</div>
+    <div>
+      <h1 class="text-xl font-bold leading-tight">Flight Route Graph</h1>
+      <p class="text-sm text-slate-500">Diexport pada 6/11/2026, 12.36.06</p>
+    </div>
+  </div>
+</header>
+<main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+  <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-slate-200">
+      <h2 class="font-semibold">Graf Rute Penerbangan</h2>
+      <div class="flex items-center gap-4 text-xs text-slate-600">
+        <span class="flex items-center gap-1.5"><i class="w-3 h-3 rounded bg-emerald-500 inline-block"></i>Asal</span>
+        <span class="flex items-center gap-1.5"><i class="w-3 h-3 rounded bg-indigo-500 inline-block"></i>Transit</span>
+        <span class="flex items-center gap-1.5"><i class="w-3 h-3 rounded bg-rose-500 inline-block"></i>Tujuan akhir</span>
+        <button id="btnFit" class="px-2.5 py-1 rounded-lg border border-slate-300 hover:bg-slate-100">Pas ke layar</button>
+      </div>
+    </div>
+    <div id="network" class="w-full" style="height: 540px;"></div>
+    <p class="px-5 py-2 text-xs text-slate-500 border-t border-slate-200 bg-slate-50">Seret node untuk memindahkan, scroll untuk zoom. Klik kartu jalur untuk menyorot rutenya.</p>
+  </section>
+  <section id="summary" class="space-y-6">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+      <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <h2 class="font-semibold text-lg">a. Rincian Jalur Rute &amp; Total Biaya</h2>
+        <span id="cheapestBadge" class="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 rounded-full">Termurah: Jalur 7 • Rp 15.269.497</span>
+      </div>
+      <div id="routeCards" class="grid lg:grid-cols-2 gap-4">
+      <div class="route-card border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-indigo-300" data-idx="0">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-semibold text-indigo-600">Jalur 1</span>
+          <span class="text-xs text-slate-400">4 segmen</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-1 mb-3"><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Sub</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Dps</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Tpe</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Sea</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Newyork</span></div>
+        <ul class="text-sm mb-3">
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Sub → Dps</span>
+          <span class="font-medium">Rp 737.465</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Dps → Tpe</span>
+          <span class="font-medium">Rp 3.506.471</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Tpe → Sea</span>
+          <span class="font-medium">Rp 7.718.401</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Sea → Newyork</span>
+          <span class="font-medium">Rp 5.469.154</span>
+        </li></ul>
+        <div class="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2">
+          <span class="text-sm text-slate-600">Total biaya</span>
+          <span class="font-bold text-slate-900">Rp 17.431.491</span>
+        </div>
+      </div>
+      <div class="route-card border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-indigo-300" data-idx="1">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-semibold text-indigo-600">Jalur 2</span>
+          <span class="text-xs text-slate-400">4 segmen</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-1 mb-3"><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Sub</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Kul</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Tpe</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Sfo</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Newyork</span></div>
+        <ul class="text-sm mb-3">
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Sub → Kul</span>
+          <span class="font-medium">Rp 1.035.649</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Kul → Tpe</span>
+          <span class="font-medium">Rp 4.696.673</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Tpe → Sfo</span>
+          <span class="font-medium">Rp 6.709.027</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Sfo → Newyork</span>
+          <span class="font-medium">Rp 5.248.612</span>
+        </li></ul>
+        <div class="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2">
+          <span class="text-sm text-slate-600">Total biaya</span>
+          <span class="font-bold text-slate-900">Rp 17.689.961</span>
+        </div>
+      </div>
+      <div class="route-card border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-indigo-300" data-idx="2">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-semibold text-indigo-600">Jalur 3</span>
+          <span class="text-xs text-slate-400">4 segmen</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-1 mb-3"><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Sub</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Dps</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Tpe</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Sfo</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Newyork</span></div>
+        <ul class="text-sm mb-3">
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Sub → Dps</span>
+          <span class="font-medium">Rp 737.465</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Dps → Tpe</span>
+          <span class="font-medium">Rp 3.506.471</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Tpe → Sfo</span>
+          <span class="font-medium">Rp 6.709.027</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Sfo → Newyork</span>
+          <span class="font-medium">Rp 5.248.612</span>
+        </li></ul>
+        <div class="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2">
+          <span class="text-sm text-slate-600">Total biaya</span>
+          <span class="font-bold text-slate-900">Rp 16.201.575</span>
+        </div>
+      </div>
+      <div class="route-card border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-indigo-300" data-idx="3">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-semibold text-indigo-600">Jalur 4</span>
+          <span class="text-xs text-slate-400">3 segmen</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-1 mb-3"><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Sub</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Kul</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Ist</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Newyork</span></div>
+        <ul class="text-sm mb-3">
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Sub → Kul</span>
+          <span class="font-medium">Rp 1.035.649</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Kul → Ist</span>
+          <span class="font-medium">Rp 4.707.667</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Ist → Newyork</span>
+          <span class="font-medium">Rp 10.619.161</span>
+        </li></ul>
+        <div class="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2">
+          <span class="text-sm text-slate-600">Total biaya</span>
+          <span class="font-bold text-slate-900">Rp 16.362.477</span>
+        </div>
+      </div>
+      <div class="route-card border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-indigo-300" data-idx="4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-semibold text-indigo-600">Jalur 5</span>
+          <span class="text-xs text-slate-400">3 segmen</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-1 mb-3"><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Sub</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Kul</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Saw</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Newyork</span></div>
+        <ul class="text-sm mb-3">
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Sub → Kul</span>
+          <span class="font-medium">Rp 1.035.649</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Kul → Saw</span>
+          <span class="font-medium">Rp 3.987.765</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Saw → Newyork</span>
+          <span class="font-medium">Rp 10.354.952</span>
+        </li></ul>
+        <div class="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2">
+          <span class="text-sm text-slate-600">Total biaya</span>
+          <span class="font-bold text-slate-900">Rp 15.378.366</span>
+        </div>
+      </div>
+      <div class="route-card border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-indigo-300" data-idx="5">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-semibold text-indigo-600">Jalur 6</span>
+          <span class="text-xs text-slate-400">4 segmen</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-1 mb-3"><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Sub</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Kul</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Sin</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Auh</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Newyork</span></div>
+        <ul class="text-sm mb-3">
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Sub → Kul</span>
+          <span class="font-medium">Rp 1.035.649</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Kul → Sin</span>
+          <span class="font-medium">Rp 1.597.131</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Sin → Auh</span>
+          <span class="font-medium">Rp 5.757.812</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Auh → Newyork</span>
+          <span class="font-medium">Rp 17.436.517</span>
+        </li></ul>
+        <div class="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2">
+          <span class="text-sm text-slate-600">Total biaya</span>
+          <span class="font-bold text-slate-900">Rp 25.827.109</span>
+        </div>
+      </div>
+      <div class="route-card border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-indigo-300" data-idx="6">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-semibold text-indigo-600">Jalur 7</span>
+          <span class="text-xs text-slate-400">3 segmen</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-1 mb-3"><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Sub</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Kul</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Icn</span><span class="text-slate-400 text-xs mx-0.5">→</span><span class="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-medium">Newyork</span></div>
+        <ul class="text-sm mb-3">
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Sub → Kul</span>
+          <span class="font-medium">Rp 1.035.649</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Kul → Icn</span>
+          <span class="font-medium">Rp 5.227.787</span>
+        </li>
+        <li class="flex justify-between gap-3 py-1.5 border-b border-dashed border-slate-200 last:border-0">
+          <span class="text-slate-600">Icn → Newyork</span>
+          <span class="font-medium">Rp 9.006.061</span>
+        </li></ul>
+        <div class="flex justify-between items-center bg-slate-50 rounded-lg px-3 py-2">
+          <span class="text-sm text-slate-600">Total biaya</span>
+          <span class="font-bold text-slate-900">Rp 15.269.497</span>
+        </div>
+      </div></div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+      <h2 class="font-semibold text-lg mb-4">b. Daftar Harga Unik Tiap Segmen</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-slate-500 border-b border-slate-200">
+              <th class="py-2 pr-4 font-medium">#</th>
+              <th class="py-2 pr-4 font-medium">Asal</th>
+              <th class="py-2 pr-4 font-medium">Tujuan</th>
+              <th class="py-2 pr-4 font-medium text-right">Harga</th>
+              <th class="py-2 font-medium text-right">Dipakai di</th>
+            </tr>
+          </thead>
+          <tbody id="segmentBody">
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">1</td>
+        <td class="py-2 pr-4">Sub</td>
+        <td class="py-2 pr-4">Dps</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 737.465</td>
+        <td class="py-2 text-right text-slate-500">Jalur 1, Jalur 3</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">2</td>
+        <td class="py-2 pr-4">Dps</td>
+        <td class="py-2 pr-4">Tpe</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 3.506.471</td>
+        <td class="py-2 text-right text-slate-500">Jalur 1, Jalur 3</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">3</td>
+        <td class="py-2 pr-4">Tpe</td>
+        <td class="py-2 pr-4">Sea</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 7.718.401</td>
+        <td class="py-2 text-right text-slate-500">Jalur 1</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">4</td>
+        <td class="py-2 pr-4">Sea</td>
+        <td class="py-2 pr-4">Newyork</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 5.469.154</td>
+        <td class="py-2 text-right text-slate-500">Jalur 1</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">5</td>
+        <td class="py-2 pr-4">Sub</td>
+        <td class="py-2 pr-4">Kul</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 1.035.649</td>
+        <td class="py-2 text-right text-slate-500">Jalur 2, Jalur 4, Jalur 5, Jalur 6, Jalur 7</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">6</td>
+        <td class="py-2 pr-4">Kul</td>
+        <td class="py-2 pr-4">Tpe</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 4.696.673</td>
+        <td class="py-2 text-right text-slate-500">Jalur 2</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">7</td>
+        <td class="py-2 pr-4">Tpe</td>
+        <td class="py-2 pr-4">Sfo</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 6.709.027</td>
+        <td class="py-2 text-right text-slate-500">Jalur 2, Jalur 3</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">8</td>
+        <td class="py-2 pr-4">Sfo</td>
+        <td class="py-2 pr-4">Newyork</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 5.248.612</td>
+        <td class="py-2 text-right text-slate-500">Jalur 2, Jalur 3</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">9</td>
+        <td class="py-2 pr-4">Kul</td>
+        <td class="py-2 pr-4">Ist</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 4.707.667</td>
+        <td class="py-2 text-right text-slate-500">Jalur 4</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">10</td>
+        <td class="py-2 pr-4">Ist</td>
+        <td class="py-2 pr-4">Newyork</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 10.619.161</td>
+        <td class="py-2 text-right text-slate-500">Jalur 4</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">11</td>
+        <td class="py-2 pr-4">Kul</td>
+        <td class="py-2 pr-4">Saw</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 3.987.765</td>
+        <td class="py-2 text-right text-slate-500">Jalur 5</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">12</td>
+        <td class="py-2 pr-4">Saw</td>
+        <td class="py-2 pr-4">Newyork</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 10.354.952</td>
+        <td class="py-2 text-right text-slate-500">Jalur 5</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">13</td>
+        <td class="py-2 pr-4">Kul</td>
+        <td class="py-2 pr-4">Sin</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 1.597.131</td>
+        <td class="py-2 text-right text-slate-500">Jalur 6</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">14</td>
+        <td class="py-2 pr-4">Sin</td>
+        <td class="py-2 pr-4">Auh</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 5.757.812</td>
+        <td class="py-2 text-right text-slate-500">Jalur 6</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">15</td>
+        <td class="py-2 pr-4">Auh</td>
+        <td class="py-2 pr-4">Newyork</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 17.436.517</td>
+        <td class="py-2 text-right text-slate-500">Jalur 6</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">16</td>
+        <td class="py-2 pr-4">Kul</td>
+        <td class="py-2 pr-4">Icn</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 5.227.787</td>
+        <td class="py-2 text-right text-slate-500">Jalur 7</td>
+      </tr>
+      <tr class="border-b border-slate-100 last:border-0">
+        <td class="py-2 pr-4 text-slate-400">17</td>
+        <td class="py-2 pr-4">Icn</td>
+        <td class="py-2 pr-4">Newyork</td>
+        <td class="py-2 pr-4 text-right font-medium ">Rp 9.006.061</td>
+        <td class="py-2 text-right text-slate-500">Jalur 7</td>
+      </tr></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+  <section class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+    <h2 class="font-semibold text-lg mb-3">Data Input Asli</h2>
+    <div class="grid md:grid-cols-2 gap-4">
+      <div><p class="text-xs text-slate-500 mb-1">Daftar harga segmen</p><pre class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs overflow-auto">sub-dps=737465
+dps-tpe=3506471
+tpe-sea=7718401
+sea-newyork=5469154
+sub-kul=1035649
+kul-tpe=4696673
+tpe-sfo=6709027
+sfo-newyork=5248612
+sub-dps=737465
+dps-tpe=3506471
+tpe-sfo=6709027
+sfo-newyork=5248612
+sub-kul=1035649
+kul-ist=4707667
+ist-newyork=10619161
+sub-kul=1035649
+kul-saw=3987765
+saw-newyork=10354952
+sub-kul=1035649
+kul-sin=1597131
+sin-auh=5757812
+auh-newyork=17436517
+sub-kul=1035649
+kul-icn=5227787
+icn-newyork=9006061</pre></div>
+      <div><p class="text-xs text-slate-500 mb-1">Alur rute</p><pre class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs overflow-auto">sub-dps-tpe-sea-newyork
+sub-kul-tpe-sfo-newyork
+sub-dps-tpe-sfo-newyork
+sub-kul-ist-newyork
+sub-kul-saw-newyork
+sub-kul-sin-auh-newyork
+sub-kul-icn-newyork</pre></div>
+    </div>
+  </section>
+</main>
+<footer class="text-center text-xs text-slate-400 py-8">Directed Weighted Graph • Vis.js Network</footer>
+<script>
+(function exportRuntime(D) {
+    const el = id => document.getElementById(id);
+    const nodes = new vis.DataSet(D.nodes), edges = new vis.DataSet(D.edges);
+    const net = new vis.Network(el('network'), { nodes, edges }, {
+      physics: { enabled: false },
+      interaction: { dragNodes: true, dragView: true, zoomView: true, hover: true },
+      edges: { selectionWidth: 2 }
+    });
+    net.fit();
+    el('btnFit').addEventListener('click', () => net.fit({ animation: { duration: 400 } }));
+    let active = -1;
+    function highlight(idx) {
+      active = active === idx ? -1 : idx;
+      const set = active >= 0 ? new Set(D.routes[active].edgeIds) : null;
+      const nset = active >= 0 ? new Set(D.routes[active].cities) : null;
+      edges.update(edges.getIds().map(id => {
+        const e = edges.get(id), miss = e.dashes, on = !set || set.has(id);
+        return {
+          id, width: set && on ? 4 : 2,
+          color: { color: set ? (on ? '#4f46e5' : '#e2e8f0') : (miss ? '#f43f5e' : '#94a3b8'), highlight: '#4f46e5', hover: '#6366f1' },
+          font: Object.assign({}, e.font, { color: on ? (miss ? '#be123c' : '#334155') : '#cbd5e1' })
+        };
+      }));
+      nodes.update(nodes.getIds().map(id => ({ id, opacity: !nset || nset.has(id) ? 1 : 0.3 })));
+      document.querySelectorAll('.route-card').forEach((c, i) => c.classList.toggle('active', i === active));
+    }
+    document.querySelectorAll('.route-card').forEach(c =>
+      c.addEventListener('click', () => highlight(+c.dataset.idx)));
+  })({"nodes":[{"id":"sub","label":"Sub","shape":"box","margin":10,"color":{"background":"#10b981","border":"#047857","highlight":{"background":"#10b981","border":"#0f172a"},"hover":{"background":"#10b981","border":"#0f172a"}},"font":{"color":"#ffffff","size":15,"face":"system-ui","bold":true},"shapeProperties":{"borderRadius":10},"borderWidth":2,"x":-134,"y":-416,"opacity":1},{"id":"dps","label":"Dps","shape":"box","margin":10,"color":{"background":"#6366f1","border":"#4338ca","highlight":{"background":"#6366f1","border":"#0f172a"},"hover":{"background":"#6366f1","border":"#0f172a"}},"font":{"color":"#ffffff","size":15,"face":"system-ui","bold":true},"shapeProperties":{"borderRadius":10},"borderWidth":2,"x":-375,"y":-270,"opacity":1},{"id":"tpe","label":"Tpe","shape":"box","margin":10,"color":{"background":"#6366f1","border":"#4338ca","highlight":{"background":"#6366f1","border":"#0f172a"},"hover":{"background":"#6366f1","border":"#0f172a"}},"font":{"color":"#ffffff","size":15,"face":"system-ui","bold":true},"shapeProperties":{"borderRadius":10},"borderWidth":2,"x":-265,"y":4,"opacity":1},{"id":"sea","label":"Sea","shape":"box","margin":10,"color":{"background":"#6366f1","border":"#4338ca","highlight":{"background":"#6366f1","border":"#0f172a"},"hover":{"background":"#6366f1","border":"#0f172a"}},"font":{"color":"#ffffff","size":15,"face":"system-ui","bold":true},"shapeProperties":{"borderRadius":10},"borderWidth":2,"x":-326,"y":254,"opacity":1},{"id":"newyork","label":"Newyork","shape":"box","margin":10,"color":{"background":"#f43f5e","border":"#be123c","highlight":{"background":"#f43f5e","border":"#0f172a"},"hover":{"background":"#f43f5e","border":"#0f172a"}},"font":{"color":"#ffffff","size":15,"face":"system-ui","bold":true},"shapeProperties":{"borderRadius":10},"borderWidth":2,"x":59,"y":290,"opacity":1},{"id":"kul","label":"Kul","shape":"box","margin":10,"color":{"background":"#6366f1","border":"#4338ca","highlight":{"background":"#6366f1","border":"#0f172a"},"hover":{"background":"#6366f1","border":"#0f172a"}},"font":{"color":"#ffffff","size":15,"face":"system-ui","bold":true},"shapeProperties":{"borderRadius":10},"borderWidth":2,"x":62,"y":-175,"opacity":1},{"id":"sfo","label":"Sfo","shape":"box","margin":10,"color":{"background":"#6366f1","border":"#4338ca","highlight":{"background":"#6366f1","border":"#0f172a"},"hover":{"background":"#6366f1","border":"#0f172a"}},"font":{"color":"#ffffff","size":15,"face":"system-ui","bold":true},"shapeProperties":{"borderRadius":10},"borderWidth":2,"x":-212,"y":364,"opacity":1},{"id":"ist","label":"Ist","shape":"box","margin":10,"color":{"background":"#6366f1","border":"#4338ca","highlight":{"background":"#6366f1","border":"#0f172a"},"hover":{"background":"#6366f1","border":"#0f172a"}},"font":{"color":"#ffffff","size":15,"face":"system-ui","bold":true},"shapeProperties":{"borderRadius":10},"borderWidth":2,"x":207,"y":167,"opacity":1},{"id":"saw","label":"Saw","shape":"box","margin":10,"color":{"background":"#6366f1","border":"#4338ca","highlight":{"background":"#6366f1","border":"#0f172a"},"hover":{"background":"#6366f1","border":"#0f172a"}},"font":{"color":"#ffffff","size":15,"face":"system-ui","bold":true},"shapeProperties":{"borderRadius":10},"borderWidth":2,"x":242,"y":17,"opacity":1},{"id":"sin","label":"Sin","shape":"box","margin":10,"color":{"background":"#6366f1","border":"#4338ca","highlight":{"background":"#6366f1","border":"#0f172a"},"hover":{"background":"#6366f1","border":"#0f172a"}},"font":{"color":"#ffffff","size":15,"face":"system-ui","bold":true},"shapeProperties":{"borderRadius":10},"borderWidth":2,"x":377,"y":-188,"opacity":1},{"id":"auh","label":"Auh","shape":"box","margin":10,"color":{"background":"#6366f1","border":"#4338ca","highlight":{"background":"#6366f1","border":"#0f172a"},"hover":{"background":"#6366f1","border":"#0f172a"}},"font":{"color":"#ffffff","size":15,"face":"system-ui","bold":true},"shapeProperties":{"borderRadius":10},"borderWidth":2,"x":409,"y":134,"opacity":1},{"id":"icn","label":"Icn","shape":"box","margin":10,"color":{"background":"#6366f1","border":"#4338ca","highlight":{"background":"#6366f1","border":"#0f172a"},"hover":{"background":"#6366f1","border":"#0f172a"}},"font":{"color":"#ffffff","size":15,"face":"system-ui","bold":true},"shapeProperties":{"borderRadius":10},"borderWidth":2,"x":-60,"y":50,"opacity":1}],"edges":[{"id":"sub-dps","from":"sub","to":"dps","label":"Rp 737.465","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"dps-tpe","from":"dps","to":"tpe","label":"Rp 3.506.471","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"tpe-sea","from":"tpe","to":"sea","label":"Rp 7.718.401","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"sea-newyork","from":"sea","to":"newyork","label":"Rp 5.469.154","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"sub-kul","from":"sub","to":"kul","label":"Rp 1.035.649","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"kul-tpe","from":"kul","to":"tpe","label":"Rp 4.696.673","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"tpe-sfo","from":"tpe","to":"sfo","label":"Rp 6.709.027","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"sfo-newyork","from":"sfo","to":"newyork","label":"Rp 5.248.612","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"kul-ist","from":"kul","to":"ist","label":"Rp 4.707.667","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"ist-newyork","from":"ist","to":"newyork","label":"Rp 10.619.161","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"kul-saw","from":"kul","to":"saw","label":"Rp 3.987.765","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"saw-newyork","from":"saw","to":"newyork","label":"Rp 10.354.952","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"kul-sin","from":"kul","to":"sin","label":"Rp 1.597.131","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"sin-auh","from":"sin","to":"auh","label":"Rp 5.757.812","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"auh-newyork","from":"auh","to":"newyork","label":"Rp 17.436.517","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"kul-icn","from":"kul","to":"icn","label":"Rp 5.227.787","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}},{"id":"icn-newyork","from":"icn","to":"newyork","label":"Rp 9.006.061","arrows":{"to":{"enabled":true,"scaleFactor":0.9}},"dashes":false,"color":{"color":"#94a3b8","highlight":"#4f46e5","hover":"#6366f1"},"width":2,"font":{"size":12,"color":"#334155","background":"#ffffff","strokeWidth":0,"align":"middle","face":"system-ui"},"smooth":{"enabled":true,"type":"continuous"}}],"routes":[{"edgeIds":["sub-dps","dps-tpe","tpe-sea","sea-newyork"],"cities":["sub","dps","tpe","sea","newyork"]},{"edgeIds":["sub-kul","kul-tpe","tpe-sfo","sfo-newyork"],"cities":["sub","kul","tpe","sfo","newyork"]},{"edgeIds":["sub-dps","dps-tpe","tpe-sfo","sfo-newyork"],"cities":["sub","dps","tpe","sfo","newyork"]},{"edgeIds":["sub-kul","kul-ist","ist-newyork"],"cities":["sub","kul","ist","newyork"]},{"edgeIds":["sub-kul","kul-saw","saw-newyork"],"cities":["sub","kul","saw","newyork"]},{"edgeIds":["sub-kul","kul-sin","sin-auh","auh-newyork"],"cities":["sub","kul","sin","auh","newyork"]},{"edgeIds":["sub-kul","kul-icn","icn-newyork"],"cities":["sub","kul","icn","newyork"]}]});
+</script>
+</body>
+</html>
